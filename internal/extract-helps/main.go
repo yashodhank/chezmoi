@@ -13,8 +13,12 @@ import (
 	"text/tabwriter"
 	"text/template"
 
-	"github.com/kr/text"
+	krtext "github.com/kr/text"
 	"github.com/russross/blackfriday/v2"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
 )
 
 var (
@@ -180,7 +184,7 @@ func renderParagraph(w io.Writer, paragraph *blackfriday.Node) error {
 	if err != nil {
 		return err
 	}
-	if _, err := w.Write(text.WrapBytes(t, *width)); err != nil {
+	if _, err := w.Write(krtext.WrapBytes(t, *width)); err != nil {
 		return err
 	}
 	_, err = w.Write(newline)
@@ -246,7 +250,60 @@ func render(start, end *blackfriday.Node) (string, error) {
 	return b.String(), nil
 }
 
+func assert(value bool) {
+	if !value {
+		panic("assertion failed")
+	}
+}
+
 func extractHelps(r io.Reader) (map[string]*help, error) {
+	data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	m := goldmark.New(
+		goldmark.WithExtensions(extension.GFM),
+	)
+	root := m.Parser().Parse(text.NewReader(data))
+
+	state := "find-commands"
+	helps := make(map[string]*help)
+	var command string
+	var startCommand, endCommand, startExamples, endExamples ast.Node
+FOR:
+	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
+		switch state {
+		case "find-commands":
+			if node.Kind() == ast.KindHeading &&
+				node.(*ast.Heading).Level == 2 &&
+				node.FirstChild() != nil &&
+				node.FirstChild().Kind() == ast.KindText &&
+				bytes.Equal(node.Text(data), []byte("Commands")) {
+				state = "read-commands"
+			}
+		case "read-commands":
+			switch {
+			case node.Kind() == ast.KindHeading &&
+				node.(*ast.Heading).Level == 2:
+				break FOR
+			case node.Kind() == ast.KindHeading &&
+				node.(*ast.Heading).Level == 3:
+				assert(node.HasChildren())
+				assert(node.FirstChild().Kind() == ast.KindCodeSpan)
+				command = string(node.FirstChild().Text(data))
+				fmt.Printf("found command %q\n", command)
+				state = "read-command"
+				startCommand = node.NextSibling()
+			}
+		case "read-command":
+
+		}
+	}
+
+	return helps, nil
+}
+
+func xextractHelps(r io.Reader) (map[string]*help, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
