@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/ansi"
 	"github.com/spf13/cobra"
 )
 
@@ -50,10 +52,30 @@ func (c *Config) runDocsCmd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%s: ambiguous pattern, matches %s", pattern, strings.Join(filenames, ", "))
 		}
 	}
+
 	data, err := getDoc(filename)
 	if err != nil {
 		return err
 	}
-	_, err = c.Stdout().Write(data)
+
+	stylePath := "notty"
+	if c.colored {
+		// FIXME make stylePath configurable
+		stylePath = "dark"
+	}
+
+	tr, err := glamour.NewTermRenderer(stylePath, ansi.Options{
+		WordWrap: 80,
+	})
+	if err != nil {
+		return err
+	}
+
+	out, err := tr.RenderBytes(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Stdout().Write(out)
 	return err
 }
