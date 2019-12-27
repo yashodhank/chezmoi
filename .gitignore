@@ -2,7 +2,5 @@
 /bin
 /chezmoi
 /chezmoi.exe
-/cmd/cmd-packr.go
 /dist
 /goreleaser/snap.login
-/packrd
